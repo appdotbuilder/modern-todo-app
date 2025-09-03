@@ -1,18 +1,56 @@
+import { db } from '../db';
+import { todosTable } from '../db/schema';
+import { eq } from 'drizzle-orm';
 import { type UpdateTodoInput, type Todo } from '../schema';
 
 export const updateTodo = async (input: UpdateTodoInput): Promise<Todo> => {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is updating an existing todo item in the database.
-    // It should update only the provided fields and set updated_at to current timestamp.
-    // Should throw an error if the todo with the given ID doesn't exist.
-    return Promise.resolve({
-        id: input.id,
-        title: input.title || 'Placeholder Title',
-        description: input.description || null,
-        due_date: input.due_date || null,
-        completed: input.completed !== undefined ? input.completed : false,
-        priority: input.priority || null,
-        created_at: new Date(), // Placeholder - should be original creation date
-        updated_at: new Date()
-    } as Todo);
+  try {
+    // First, check if the todo exists
+    const existingTodo = await db.select()
+      .from(todosTable)
+      .where(eq(todosTable.id, input.id))
+      .execute();
+
+    if (existingTodo.length === 0) {
+      throw new Error(`Todo with id ${input.id} not found`);
+    }
+
+    // Build update object with only provided fields
+    const updateFields: any = {
+      updated_at: new Date() // Always update the timestamp
+    };
+
+    if (input.title !== undefined) {
+      updateFields.title = input.title;
+    }
+    if (input.description !== undefined) {
+      updateFields.description = input.description;
+    }
+    if (input.due_date !== undefined) {
+      updateFields.due_date = input.due_date ? input.due_date.toISOString().split('T')[0] : null;
+    }
+    if (input.completed !== undefined) {
+      updateFields.completed = input.completed;
+    }
+    if (input.priority !== undefined) {
+      updateFields.priority = input.priority;
+    }
+
+    // Update the todo with only the provided fields
+    const result = await db.update(todosTable)
+      .set(updateFields)
+      .where(eq(todosTable.id, input.id))
+      .returning()
+      .execute();
+
+    // Convert date string back to Date object for return
+    const updatedTodo = result[0];
+    return {
+      ...updatedTodo,
+      due_date: updatedTodo.due_date ? new Date(updatedTodo.due_date) : null
+    };
+  } catch (error) {
+    console.error('Todo update failed:', error);
+    throw error;
+  }
 };

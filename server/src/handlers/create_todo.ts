@@ -1,18 +1,33 @@
+import { db } from '../db';
+import { todosTable } from '../db/schema';
 import { type CreateTodoInput, type Todo } from '../schema';
 
 export const createTodo = async (input: CreateTodoInput): Promise<Todo> => {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is creating a new todo item and persisting it in the database.
-    // It should insert the todo with the provided title, description, due_date, and priority,
-    // with completed defaulting to false and timestamps set to current time.
-    return Promise.resolve({
-        id: 0, // Placeholder ID
+  try {
+    // Insert todo record
+    const result = await db.insert(todosTable)
+      .values({
         title: input.title,
         description: input.description || null,
-        due_date: input.due_date || null,
-        completed: false, // Default value
+        due_date: input.due_date ? input.due_date.toISOString().split('T')[0] : null, // Convert Date to YYYY-MM-DD string format
         priority: input.priority || null,
-        created_at: new Date(),
-        updated_at: new Date()
-    } as Todo);
+        // completed defaults to false in schema, no need to set explicitly
+        // created_at and updated_at default to NOW() in schema
+      })
+      .returning()
+      .execute();
+
+    // Return the created todo item
+    const todo = result[0];
+    return {
+      ...todo,
+      // Ensure date fields are properly typed as Date objects
+      created_at: new Date(todo.created_at),
+      updated_at: new Date(todo.updated_at),
+      due_date: todo.due_date ? new Date(todo.due_date) : null
+    };
+  } catch (error) {
+    console.error('Todo creation failed:', error);
+    throw error;
+  }
 };
